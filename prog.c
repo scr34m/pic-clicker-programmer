@@ -28,6 +28,26 @@ typedef struct ihex_block {
 ihex_block_t *ihex_head = NULL;
 ihex_block_t *ihex_last = NULL;
 
+void ihex_block_create(unsigned long address) {
+    ihex_block_t *block;
+    block = malloc(sizeof(ihex_block_t));
+    block->buff = malloc(65*1024);
+    memset(block->buff, 0xFF, 65*1024);
+    block->address = address;
+    block->next = ihex_last;
+
+    if (ihex_head == NULL) {
+        ihex_head = block;
+    }
+
+    if (ihex_last != NULL) {
+        ihex_last->next = block;
+    }
+
+    ihex_last = block;
+    ihex_last->next = NULL;
+}
+
 ihex_bool_t ihex_data_read(struct ihex_state *ihex, ihex_record_type_t type, ihex_bool_t error) {
     if (error) {
         (void) fprintf(stderr, "Checksum error\n");
@@ -38,25 +58,12 @@ ihex_bool_t ihex_data_read(struct ihex_state *ihex, ihex_record_type_t type, ihe
         exit(1);
     }
     if (type == IHEX_EXTENDED_LINEAR_ADDRESS_RECORD) {
-        ihex_block_t *block;
-        block = malloc(sizeof(ihex_block_t));
-        block->buff = malloc(65*1024);
-        memset(block->buff, 0xFF, 65*1024);
-        block->address = (((ihex_address_t) ihex->data[0]) << 24) | (((ihex_address_t) ihex->data[1]) << 16);
-        block->next = ihex_last;
-
-        if (ihex_head == NULL) {
-            ihex_head = block;
-        }
-        
-        if (ihex_last != NULL) {
-            ihex_last->next = block;
-        }
-    
-        ihex_last = block;
-        ihex_last->next = NULL;
-
+        ihex_block_create((((ihex_address_t) ihex->data[0]) << 24) | (((ihex_address_t) ihex->data[1]) << 16));
     } else if (type == IHEX_DATA_RECORD) {
+        // ihex block list not initalized, no IHEX_EXTENDED_LINEAR_ADDRESS_RECORD readed
+        if (ihex_last == NULL) {
+            ihex_block_create(0);
+        }
         unsigned long address = (unsigned long) IHEX_LINEAR_ADDRESS(ihex);
         memcpy(ihex_last->buff + (address - ihex_last->address), ihex->data, ihex->length);
         ihex_last->length += ihex->length;
